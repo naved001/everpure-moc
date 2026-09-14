@@ -71,7 +71,13 @@ Install the operator using the OCP Operators tab, selecting the `portworx` names
 1. Go to https://central.portworx.com and create a new YAML spec by selecting PX-CSI and entering the OpenShift cluster details.
    - This is not strictly necessary, because you can use the provided StorageCluster resource. However, the online portal provides a convenient way to generate the StorageCluster resource.
 
-2. Apply the generated file to the cluster.
+2. Set the annotation to prevent the operator from creating the default storage classes that don't work for us.
+
+```
+portworx.io/disable-storage-class: "true"
+```
+
+3. Apply the generated file to the cluster.
 
 
 Create a secret with the `pure.json` file:
