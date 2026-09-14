@@ -71,7 +71,13 @@ Install the operator using the OCP Operators tab, selecting the `portworx` names
 1. Go to https://central.portworx.com and create a new YAML spec by selecting PX-CSI and entering the OpenShift cluster details.
    - This is not strictly necessary, because you can use the provided StorageCluster resource. However, the online portal provides a convenient way to generate the StorageCluster resource.
 
-2. Apply the generated file to the cluster.
+2. Set the annotation to prevent the operator from creating the default storage classes that don't work for us.
+
+```
+portworx.io/disable-storage-class: "true"
+```
+
+3. Apply the generated file to the cluster.
 
 
 Create a secret with the `pure.json` file:
@@ -101,6 +107,16 @@ Check for newly created storage classes:
 ```bash
 oc get sc
 ```
+
+## NFS over TLS
+
+The RHCOS image used by OpenShift lacks the userspace `tlshd`. We need to run a pod that runs tlshd on every node.
+
+1. Clone https://github.com/larsks/tlshd/tree/rhel9.6/
+2. Grab the certificate that the interface service NFS is using.
+3. Place the certificate in files in that git repo.
+4. Deploy the tlshd daemon from that repo.
+5. Setup your storage classes as shown in the next section to use NFS over TLS
 
 ## StorageClasses
 
@@ -170,114 +186,9 @@ allowedTopologies:
 
 The PX-CSI controller pods must be able to reach the FlashBlade management endpoint specified in `pure.json`.
 
-There are a few ways to make this happen:
-
-### Route to the management endpoint from the host's default gateway
-
-This means that every pod can reach the management endpoint. To prevent that, create an AdminNetworkPolicy.
-
-Here's an example:
-
-```yaml
-apiVersion: policy.networking.k8s.io/v1alpha1
-kind: AdminNetworkPolicy
-metadata:
-  name: deny-pure-storage-api
-spec:
-  priority: 10
-  subject:
-    namespaces:
-      matchExpressions:
-        - key: kubernetes.io/metadata.name
-          operator: NotIn
-          values: [portworx]
-  egress:
-    - name: deny-pure-api
-      action: Deny
-      to:
-        - networks:
-            - "10.3.11.50/32"
-```
-
 ### Attach the network directly to the PX-CSI controller deployments
 
-Create a NetworkAttachmentDefinition such as:
-
-```yaml
-apiVersion: "k8s.cni.cncf.io/v1"
-kind: NetworkAttachmentDefinition
-metadata:
-  name: eno2-storage-net
-spec:
-  config: '{
-      "cniVersion": "0.3.1",
-      "type": "macvlan",
-      "master": "eno2",
-      "mode": "bridge",
-      "ipam": {
-        "type": "whereabouts",
-        "range": "10.8.0.0/24", # in our case, the route to the management endpoint is on the storage network
-        "range_start": "10.8.0.13",
-        "range_end": "10.8.0.19",
-        "gateway": "10.8.0.1",
-        "routes": [
-          {
-            "dst": "10.3.11.50/32",
-            "gw": "10.8.0.1"
-          }
-        ]
-      }
-    }'
-```
-
-Scale the Portworx Operator deployment to 0; otherwise, it will remove the annotation that attaches the network to the deployment.
-There will be a supported way to do this in future releases of the Portworx Operator.
-
-```bash
-oc -n openshift-operators scale  deployment portworx-operator --replicas=0
-```
-
-Patch the CSI controller Deployment:
-
-```json
-oc patch deployment px-pure-csi-controller -n portworx --patch '{
-  "spec": {
-    "template": {
-      "metadata": {
-        "annotations": {
-          "k8s.v1.cni.cncf.io/networks": "eno2-storage-net"
-        }
-      }
-    }
-  }
-}'
-```
-
-### Set the management and data interfaces in the StorageCluster resource
-
-This needs to happen before you create the StorageCluster. It has also not been tested yet, so it is unclear whether it will work; I wanted to document it for reference.
-
-```
-➜  ~ oc explain storagecluster.spec.network
-GROUP:      core.libopenstorage.org
-KIND:       StorageCluster
-VERSION:    v1
-
-FIELD: network <Object>
-
-DESCRIPTION:
-    Network is to specify network configuration for the selected nodes, similar
-    to the one [specified at cluster level](#network-configuration). If this
-    network configuration is empty, then cluster level values are used.
-
-FIELDS:
-  dataInterface	<string>
-    DataInterface is the network interface used by driver for data traffic
-
-  mgmtInterface	<string>
-    MgmtInterface is the network interface used by Portworx for control plane
-    traffic
-```
+Create a NetworkAttachmentDefinition that will allow the CSI controller deployment pods to reach the flashblade API, and then update the ComponentsK8SConfig so that the deployment has the annotation for the storage network. See the examples in `k8s` directory of this repo.
 
 ## Creating a PVC
 

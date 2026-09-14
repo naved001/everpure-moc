@@ -16,8 +16,8 @@ From the Pure dashboard, click Storage and navigate to the Realms tab. Create a 
 
 Under Policies > Management Access, create a policy scoped to your realm and assign it the "storage" role.
 
-Next, go to Settings > Users. Create a user with the access policy set to the one created in the previous step.
-Then generate a token for this user. We will use this token with the CSI driver.
+Next, go to Settings > Users. Create a serviceaccount with the access policy set to the one created in the previous step.
+Then generate token for this service account. We will use this token with the CSI driver.
 
 ## Create a Server
 
