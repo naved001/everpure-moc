@@ -7,3 +7,5 @@ resources:
   - px-csi/storagecluster.yaml
   - px-csi/storageclass.yaml
   - px-csi/rdma-storageclass.yaml
+  - px-csi/network-attachment-definition.yaml
+  - px-csi/componentsk8sconfig.yaml
