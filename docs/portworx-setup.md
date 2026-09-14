@@ -108,6 +108,16 @@ Check for newly created storage classes:
 oc get sc
 ```
 
+## NFS over TLS
+
+The RHCOS image used by OpenShift lacks the userspace `tlshd`. We need to run a pod that runs tlshd on every node.
+
+1. Clone https://github.com/larsks/tlshd/tree/rhel9.6/
+2. Grab the certificate that the interface service NFS is using.
+3. Place the certificate in files in that git repo.
+4. Deploy the tlshd daemon from that repo.
+5. Setup your storage classes as shown in the next section to use NFS over TLS
+
 ## StorageClasses
 
 The StorageClasses created by the operator do not include multitenancy features or references to your NFS export policy.
